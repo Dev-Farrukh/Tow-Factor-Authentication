@@ -4,7 +4,8 @@ import fileModel from "../model/file.schema.js";
 import jwt from "jsonwebtoken"
 import envVariables from "../config/env.config.js";
 import blackListTokenModel from "../model/token.schema.js";
-import { randomInt } from "crypto";
+import sendEmail from "../services/sendEmail.js";
+
 
 export const registerUser = async (req, res) => {
     const error = validationResult(req);
@@ -12,18 +13,20 @@ export const registerUser = async (req, res) => {
         return res.status(400).json({ errors: error.array() });
     }
 
-    const { firstName, lastName, userName, password } = req.body;
+    const { firstName, lastName, userName, password , otp } = req.body;
 
     const existingUser = await userModel.findOne({ userName })
     if (existingUser) {
         return res.status(400).json({ message: "User already exists" })
     }
+   
     
-    const Otp = randomInt(0 , 100000 , (error) => {return res.status(500).json({error})}).toString().padStart(5 , "0")
-    console.log("otp ", Otp);
+    const {Otp , data} = await sendEmail() 
+    // Wait for user to enter otp  
+    console.log(data)
     
 
-    // Wait for user to enter otp  
+
                                                                                                                                                                                                                  
 
 

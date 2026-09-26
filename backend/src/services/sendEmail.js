@@ -1,6 +1,13 @@
 import { Resend } from 'resend';
+import { randomInt } from "crypto";
 
 const sendEmail = async () => {
+    let generated_Otp ;
+    try{ generated_Otp = randomInt(0 , 100000).toString().padStart(6 , "0")}
+    // eslint-disable-next-line preserve-caught-error
+    catch(error){throw new Error(`Can not generate Otp ${error}`)}
+    console.log("otp ", generated_Otp);
+
     const resend = new Resend()
     const { data, error } = await resend.emails.send({
         from: "Practice <m.farrukh@demo.com>",
@@ -42,7 +49,7 @@ const sendEmail = async () => {
     if (error) {
         return console.error({ error });
     }
-    return data
+    return {generated_Otp , data}
 }
 
 export default sendEmail
