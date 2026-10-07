@@ -5,6 +5,8 @@ import jwt from "jsonwebtoken"
 import envVariables from "../config/env.config.js";
 import blackListTokenModel from "../model/token.schema.js";
 import sendEmail from "../services/sendEmail.js";
+import bcrypt from "bcryptjs"
+
 
 
 export const registerUser = async (req, res) => {
@@ -13,50 +15,94 @@ export const registerUser = async (req, res) => {
         return res.status(400).json({ errors: error.array() });
     }
 
-    const { firstName, lastName, userName, password , otp } = req.body;
+    const { firstName, lastName, userName, password, email } = req.body;
 
     const existingUser = await userModel.findOne({ userName })
-    if (existingUser) {
+    if (existingUser?.isVerified) {
         return res.status(400).json({ message: "User already exists" })
     }
-   
-    
-    const {Otp , data} = await sendEmail() 
-    // Wait for user to enter otp  
-    console.log(data)
-    
-
-
-                                                                                                                                                                                                                 
-
-
     const hashedPassword = await userModel.hashPassword(password);
-    const newUser = await userModel.create({
-        firstName,
-        lastName,
-        userName,
-        password: hashedPassword
-    })
-    if (!newUser) {
+
+
+    const { generated_Otp } = await sendEmail(email)
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    let hashedOtp = await bcrypt.hash(generated_Otp, 10)
+    let user;
+    if (existingUser) {
+
+        existingUser.firstName = firstName;
+        existingUser.lastName = lastName;
+        existingUser.email = email;
+        existingUser.password = hashedPassword;
+        existingUser.otp = hashedOtp;
+        existingUser.otpExpiresAt = otpExpiresAt;
+
+        user = await existingUser.save();
+
+    } else {
+        user = await userModel.create({
+            firstName,
+            lastName,
+            userName,
+            email,
+            password: hashedPassword,
+            otp: hashedOtp,
+            otpExpiresAt
+        })
+    }
+    if (!user) {
         return res.status(500).json({ message: "Internal server error" })
     }
 
-    const authToken = newUser.generateAccessToken();
-    const refreshToken = newUser.generateRefreshToken();
+    return res.status(201).json({
+        message: "OTP sent successfully. Please verify your account.",
+        userId: user._id
+    });
+}
+
+export const verifyUser = async (req, res) => {
+    // Check Errors
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Get Data and validations 
+    const { otp, userName } = req.body
+    const user = await userModel.findOne({ userName }).select("+otp +otpExpiresAt")
+    if (!user) return res.status(400).json({ message: "Invalid OTP" })
+    if (user.isVerified) return res.status(400).json({ message: "User is already verified" })
+    if (user.otpExpiresAt.getTime() < Date.now()) return res.status(400).json({ message: "Otp Expires" })
+
+    // Verify
+    let isOtpValid = await bcrypt.compare(otp, user?.otp)
+    if (!isOtpValid) return res.status(400).json({ message: "Invalid OTP" })
+
+
+    // Update
+    user.isVerified = true
+    user.otp = undefined;
+    user.otpExpiresAt = undefined;
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    await user.save()
+
+    // Tokens 
+    const authToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
     res.cookie("token", refreshToken, {
         httpOnly: true,
         secure: false,
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000
     });
+    return res.status(201).json({
+        message: "User Registered Successfully",
+        authToken,
+        userResponse
+    });
 
-    const userResponse = newUser.toObject();
-    delete userResponse.password;
-    res.status(201).json({
-        message: "User registered successfully",
-        user: userResponse,
-        authToken
-    })
+
 }
 
 export const loginUser = async (req, res) => {
@@ -68,6 +114,7 @@ export const loginUser = async (req, res) => {
     const { userName, password } = req.body
     const user = await userModel.findOne({ userName }).select("+password")
     if (!user) return res.status(404).json({ message: "User not found" })
+    if(!user.isVerified) return res.status(404).json({ message: "User not verified" })
 
     const isPassword = await user.comparePassword(password)
     if (!isPassword) return res.status(404).json({ message: "Invalid email or password" })

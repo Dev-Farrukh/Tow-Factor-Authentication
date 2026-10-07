@@ -9,8 +9,14 @@ router.post("/register", [
     body("firstName").trim().notEmpty().isLength({ min: 2, max: 10 }).withMessage("First name is invalid"),
     body("lastName").trim().notEmpty().isLength({ min: 2, max: 10 }).withMessage("Last name is invalid"),
     body("userName").trim().notEmpty().isLength({ min: 3, max: 10 }).withMessage("User name is invalid"),
+    body("email").trim().notEmpty().isLength({ min: 3 }).isEmail().withMessage("Email is invalid"),
     body("password").trim().notEmpty().withMessage("Password is invalid"),
 ], authController.registerUser)
+
+router.post("/verify", [
+    body("userName").trim().notEmpty().isLength({ min: 3, max: 10 }).withMessage("User name is invalid"),
+    body("otp").trim().notEmpty().isLength({ min: 3, max: 10 }).withMessage("Otp is invalid"),
+], authController.verifyUser)
 
 router.post("/login", [
     body("userName").trim().notEmpty().isLength({ min: 3, max: 10 }).withMessage("User name is invalid"),

@@ -1,17 +1,19 @@
 import { Resend } from 'resend';
 import { randomInt } from "crypto";
+import envVariables from '../config/env.config.js';
 
-const sendEmail = async () => {
+const sendEmail = async (userEmail) => {
     let generated_Otp ;
     try{ generated_Otp = randomInt(0 , 100000).toString().padStart(6 , "0")}
     // eslint-disable-next-line preserve-caught-error
     catch(error){throw new Error(`Can not generate Otp ${error}`)}
     console.log("otp ", generated_Otp);
+    console.log("email ", userEmail);
 
-    const resend = new Resend()
+    const resend = new Resend(envVariables.API_KEY)
     const { data, error } = await resend.emails.send({
-        from: "Practice <m.farrukh@demo.com>",
-        to: ["m.farrukhnoman@gmail.com"],
+        from: "Practice  <onboarding@resend.dev>",
+        to: [userEmail],
         subject: "Otp Verification",
         html: `
             <!DOCTYPE html>
@@ -29,7 +31,7 @@ const sendEmail = async () => {
                 </p>
                 <div style="text-align: center; margin: 30px 0;">
                     <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #4F46E5; background-color: #EEF2FF; padding: 12px 24px; border-radius: 6px; display: inline-block;">
-                    123456
+                    ${generated_Otp}
                     </span>
                 </div>
                 <p style="color: #666666; font-size: 14px; line-height: 1.5; text-align: center;">
