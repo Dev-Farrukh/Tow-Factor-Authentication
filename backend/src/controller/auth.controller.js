@@ -4,10 +4,8 @@ import fileModel from "../model/file.schema.js";
 import jwt from "jsonwebtoken"
 import envVariables from "../config/env.config.js";
 import blackListTokenModel from "../model/token.schema.js";
-import sendEmail from "../services/sendEmail.js";
+import { sendEmail , sendVerificationEmail } from "../services/sendEmail.js";
 import bcrypt from "bcryptjs"
-
-
 
 export const registerUser = async (req, res) => {
     const error = validationResult(req);
@@ -106,18 +104,55 @@ export const verifyUser = async (req, res) => {
 }
 
 export const loginUser = async (req, res) => {
+    //Input checks
     const errors = validationResult(req)
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
 
+    // Credentials Check 
     const { userName, password } = req.body
     const user = await userModel.findOne({ userName }).select("+password")
     if (!user) return res.status(404).json({ message: "User not found" })
-    if(!user.isVerified) return res.status(404).json({ message: "User not verified" })
+    if (!user.isVerified) return res.status(404).json({ message: "User not verified" })
 
     const isPassword = await user.comparePassword(password)
     if (!isPassword) return res.status(404).json({ message: "Invalid email or password" })
+    
+    // Sending and Saving OTP
+    let generatedOtp = await sendVerificationEmail(user.email)
+    let hashedOtp = await bcrypt.hash(generatedOtp , 10)
+    user.loginOtp = hashedOtp
+    user.loginOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000)
+    await user.save()
+
+    res.status(200).json({
+        message: "User login , Verify the email",
+    })
+
+
+}
+
+export const twoFactor = async (req, res) => {
+    //Input checks
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    let {userName , otp } = req.body
+    const user = await userModel.findOne({userName}).select("+loginOtp +loginOtpExpiresAt")
+    if(!user) return res.status(500).json({message : "Internal Server Error"})
+    if(user.loginOtpExpiresAt < Date.now()) return res.status(400).json({message : "Otp expired"})
+    
+    const isOTPValid = await bcrypt.compare(otp ,user.loginOtp) 
+    if(!isOTPValid) return res.status(400).json({message : "Invalid OTP"})
+
+    user.loginOtp = undefined;
+    user.loginOtpExpiresAt = undefined; 
+    const userResponse = user.toObject();
+    delete userResponse.password
+    await user.save()
 
     const authToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken()
@@ -127,15 +162,11 @@ export const loginUser = async (req, res) => {
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000
     });
-
-    const userResponse = user.toObject();
-    delete userResponse.password
     res.status(200).json({
-        message: "User login successfully",
-        user: userResponse,
-        authToken
+        message: "User login , Verify the email",
+        authToken ,
+        userResponse
     })
-
 
 }
 

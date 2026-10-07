@@ -23,6 +23,11 @@ router.post("/login", [
     body("password").trim().notEmpty().withMessage("Password is invalid"),
 ], authController.loginUser)
 
+router.post("/two_factor", [
+    body("userName").trim().notEmpty().isLength({ min: 3, max: 10 }).withMessage("User name is invalid"),
+    body("otp").trim().notEmpty().isLength({ min: 3, max: 10 }).withMessage("Otp is invalid"),
+], authController.twoFactor)
+
 router.get("/logout", authController.logout)
 
 router.get("/get-user", tokenValid, authController.getMe)

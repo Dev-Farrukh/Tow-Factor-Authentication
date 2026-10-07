@@ -39,6 +39,14 @@ const userSchema = new mongoose.Schema({
         type: String,
         select: false
     },
+    loginOtp: {
+        type: String,
+        select: false
+    },
+    loginOtpExpiresAt: {
+        type: Date,
+        select: false
+    },
     otpExpiresAt: {
         type: Date,
         select: false
